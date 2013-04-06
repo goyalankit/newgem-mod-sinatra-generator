@@ -3,29 +3,43 @@ class ModularizeSinatraGenerator < RubiGen::Base
   DEFAULT_SHEBANG = File.join(Config::CONFIG['bindir'],
                               Config::CONFIG['ruby_install_name'])
 
-  default_options :author => nil
+  default_options   :shebang => DEFAULT_SHEBANG,
+                    :version     => '0.0.1',
+                    :controller_name => 'Ping'
 
-  attr_reader :name
+  attr_reader :name, :module_name, :project_name
+  attr_reader :controller_name, :controller_module_name
+
+  # extensions/option
+  attr_reader :test_framework
+
 
   def initialize(runtime_args, runtime_options = {})
     super
     usage if args.empty?
     @destination_root = File.expand_path(args.shift)
     @name = base_name
+    @project_name = @name
+    @module_name  = name.gsub('-','_').camelize
     extract_options
   end
 
   def manifest
     record do |m|
-      # Ensure appropriate folder(s) exists
       m.directory ''
       BASEDIRS.each { |path| m.directory path }
 
-      # Create stubs
-      # m.template "template.rb",  "some_file_after_erb.rb"
-      # m.template_copy_each ["template.rb", "template2.rb"]
-      # m.file     "file",         "some_file_copied"
-      # m.file_copy_each ["path/to/file", "path/to/file2"]
+      m.template_copy_each %w( Gemfile config.ru)
+      m.template "module.rb", "#{project_name}.rb"
+      m.template "lib/app.rb", "lib/app.rb"
+      m.template "config/environment.rb", "config/environment.rb"
+
+      case controller_name
+      when 'Ping'
+        m.template "lib/controllers/ping.rb", "lib/controllers/ping.rb"
+      else
+        m.template "lib/controllers/controller.rb", "lib/controllers/#{controller_name}.rb"
+      end
 
       m.dependency "install_rubigen_scripts", [destination_root, 'modularize_sinatra'],
         :shebang => options[:shebang], :collision => :force
@@ -44,28 +58,26 @@ EOS
     def add_options!(opts)
       opts.separator ''
       opts.separator 'Options:'
-      # For each option below, place the default
-      # at the top of the file next to "default_options"
-      # opts.on("-a", "--author=\"Your Name\"", String,
-      #         "Some comment about this option",
-      #         "Default: none") { |o| options[:author] = o }
       opts.on("-v", "--version", "Show the #{File.basename($0)} version number and quit.")
+      opts.on("-T", "--test-with=TEST_FRAMEWORK", String,
+              "Select your preferred testing framework.",
+              "Options: rspec (default), test_unit.") { |x| options[:test_framework] = x }
+      opts.on("-C", "--controller=CONTROLLER_NAME", String,
+              "Give name of your initial controller",
+              "default name give is Ping.") { |x| options[:controller_name] = x }
     end
 
     def extract_options
-      # for each option, extract it into a local variable (and create an "attr_reader :author" at the top)
-      # Templates can access these value via the attr_reader-generated methods, but not the
-      # raw instance variable value.
-      # @author = options[:author]
+      @test_framework     = options[:test_framework] || "rspec"
+      @controller_name    = options[:controller_name] || "Ping"
+      @controller_module_name = controller_name.gsub('-','_').camelize
     end
 
-    # Installation skeleton.  Intermediate directories are automatically
-    # created so don't sweat their absence here.
     BASEDIRS = %w(
-      lib
-      log
+      config
+      lib/controllers
+      public
       script
-      test
       tmp
     )
 end
