@@ -84,6 +84,7 @@ EOS
       lib/controllers
       public
       spec/controllers
+      spec/support
       script
       tmp
     )
